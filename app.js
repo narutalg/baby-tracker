@@ -144,19 +144,26 @@ function DaySummary({date,feedings,diapers,mlPerMin,t,onEdit,onDelete}){
 // ── Main App ─────────────────────────────────────────────────────────
 function BabyFeedingTracker(){
   const today=new Date();
-  const [themeKey,setThemeKey]=useState("blue");
+
+  function load(key, fallback){
+    try { const v=localStorage.getItem(key); return v!==null?JSON.parse(v):fallback; }
+    catch(e){ return fallback; }
+  }
+  function save(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){} }
+
+  const [themeKey,setThemeKey]=useState(()=>load("themeKey","blue"));
   const [showThemes,setShowThemes]=useState(false);
-  const [babyGender,setBabyGender]=useState("");
-  const [babyName,setBabyName]=useState("");
-  const [babyPhoto,setBabyPhoto]=useState(null);
+  const [babyGender,setBabyGender]=useState(()=>load("babyGender",""));
+  const [babyName,setBabyName]=useState(()=>load("babyName",""));
+  const [babyPhoto,setBabyPhoto]=useState(()=>load("babyPhoto",null));
   const [showPhotoPicker,setShowPhotoPicker]=useState(false);
   const [showDatePicker,setShowDatePicker]=useState(false);
   const [pickerYear,setPickerYear]=useState(today.getFullYear());
   const [pickerMonth,setPickerMonth]=useState(today.getMonth());
-  const [weight,setWeight]=useState("");
-  const [mlPerMin,setMlPerMin]=useState("");
+  const [weight,setWeight]=useState(()=>load("weight",""));
+  const [mlPerMin,setMlPerMin]=useState(()=>load("mlPerMin",""));
   const [selectedDate,setSelectedDate]=useState(getDateString(today));
-  const [settingsOpen,setSettingsOpen]=useState(true);
+  const [settingsOpen,setSettingsOpen]=useState(()=>load("babyName","")===null||load("babyName","")==="");
   const [view,setView]=useState("today");
 
   const [feedMode,setFeedMode]=useState("time");
@@ -172,8 +179,8 @@ function BabyFeedingTracker(){
   const [diaperHour,setDiaperHour]=useState(today.getHours());
   const [diaperMin,setDiaperMin]=useState(today.getMinutes());
 
-  const [feedings,setFeedings]=useState([]);
-  const [diapers,setDiapers]=useState([]);
+  const [feedings,setFeedings]=useState(()=>load("feedings",[]));
+  const [diapers,setDiapers]=useState(()=>load("diapers",[]));
   const [animateNew,setAnimateNew]=useState(false);
 
   // Edit modal
@@ -186,6 +193,16 @@ function BabyFeedingTracker(){
 
   const fileRef=useRef();
   const t=THEMES.find(x=>x.key===themeKey)||THEMES[0];
+
+  // Persist to localStorage on every change
+  useEffect(()=>save("themeKey",themeKey),[themeKey]);
+  useEffect(()=>save("babyGender",babyGender),[babyGender]);
+  useEffect(()=>save("babyName",babyName),[babyName]);
+  useEffect(()=>save("babyPhoto",babyPhoto),[babyPhoto]);
+  useEffect(()=>save("weight",weight),[weight]);
+  useEffect(()=>save("mlPerMin",mlPerMin),[mlPerMin]);
+  useEffect(()=>save("feedings",feedings),[feedings]);
+  useEffect(()=>save("diapers",diapers),[diapers]);
 
   // (settings close on Enter key only - see inputs below)
   const todayStr=getDateString(today);
