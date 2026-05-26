@@ -123,7 +123,7 @@ function DaySummary({date,feedings,diapers,mlPerMin,t,onEdit,onDelete}){
           <div key={item.id} className="feed-row">
             <div style={{background:item.mode==="ml"?t.tag1:t.tag2,color:"white",borderRadius:7,padding:"2px 7px",fontSize:10,fontWeight:800,flexShrink:0}}>{item.mode==="ml"?"שאוב":"יניקה"}</div>
             <div style={{fontSize:12,color:t.textDark,fontWeight:600,flexShrink:0}}>{item.time}</div>
-            <div style={{fontSize:13,fontWeight:700,color:t.textDark,flex:1}}>{item.mode==="minutes"?`${item.minutes} דק׳${mlPerMin?` ≈ ${(item.minutes*parseFloat(mlPerMin)).toFixed(1)} מ״ל`:""}`:`${item.ml} מ״ל`}</div>
+            <div style={{fontSize:13,fontWeight:700,color:t.textDark,flex:1}}>{item.mode==="minutes"?`${item.minutes} דק׳${mlPerMin?` ≈ ${(item.minutes*parseFloat(mlPerMin)).toFixed(1)} מ״ל`:""}`:`${item.ml} מ״ל`}{item.side?` · ${item.side==="right"?"ימין":item.side==="left"?"שמאל":"שניהם"}`:""}</div>
             <button className="icon-btn" onClick={()=>onEdit(item,"feed")}>✏️</button>
             <button className="icon-btn" onClick={()=>onDelete("feed",item.id)}>🗑️</button>
           </div>
@@ -167,6 +167,11 @@ function BabyFeedingTracker(){
   const [view,setView]=useState("today");
 
   const [feedMode,setFeedMode]=useState("time");
+  const [feedSide,setFeedSide]=useState("");
+  const [swRunning,setSwRunning]=useState(false);
+  const [swElapsed,setSwElapsed]=useState(0); // seconds
+  const [swStartedAt,setSwStartedAt]=useState(null); // Date.now() when started
+  const swRef=useRef(null); // "right" | "left" | "both" | ""
   const [startHour,setStartHour]=useState(today.getHours());
   const [startMin,setStartMin]=useState(today.getMinutes());
   const [endHour,setEndHour]=useState(today.getHours());
@@ -220,6 +225,40 @@ function BabyFeedingTracker(){
 
   function bump(){setAnimateNew(true);setTimeout(()=>setAnimateNew(false),600);}
 
+  // Stopwatch tick
+  useEffect(()=>{
+    if(swRunning){
+      swRef.current=setInterval(()=>{
+        setSwElapsed(e=>e+1);
+      },1000);
+    } else {
+      clearInterval(swRef.current);
+    }
+    return()=>clearInterval(swRef.current);
+  },[swRunning]);
+
+  function swStart(){
+    if(!swRunning){
+      setSwStartedAt(prev=>prev||Date.now()-swElapsed*1000);
+      setSwRunning(true);
+    }
+  }
+  function swPause(){ setSwRunning(false); }
+  function swReset(){ setSwRunning(false); setSwElapsed(0); setSwStartedAt(null); }
+  function swFinish(){
+    // Convert elapsed seconds to minutes and save as feeding
+    const mins=Math.round(swElapsed/60);
+    if(mins<=0){swReset();return;}
+    const now=new Date();
+    const startedDate=new Date(Date.now()-swElapsed*1000);
+    const timeStr=`${pad(startedDate.getHours())}:${pad(startedDate.getMinutes())}`;
+    setFeedings(p=>[...p,{id:Date.now(),date:selectedDate,time:timeStr,minutes:mins,ml:0,mode:"minutes",side:feedSide}]);
+    swReset(); setFeedSide(""); bump();
+  }
+
+  const swMins=Math.floor(swElapsed/60);
+  const swSecs=swElapsed%60;
+
   function addFeeding(){
     setTimeError("");
     let minutes=0,ml=0,timeStr=`${pad(startHour)}:${pad(startMin)}`;
@@ -232,8 +271,8 @@ function BabyFeedingTracker(){
     } else {
       ml=parseFloat(pumpedMl);if(!pumpedMl||isNaN(ml)||ml<=0)return;
     }
-    setFeedings(p=>[...p,{id:Date.now(),date:selectedDate,time:timeStr,minutes,ml,mode:feedMode==="ml"?"ml":"minutes"}]);
-    setManualMins("");setPumpedMl("");bump();
+    setFeedings(p=>[...p,{id:Date.now(),date:selectedDate,time:timeStr,minutes,ml,mode:feedMode==="ml"?"ml":"minutes",side:feedSide}]);
+    setManualMins("");setPumpedMl("");setFeedSide("");bump();
   }
 
   function addDiaper(){
@@ -546,9 +585,10 @@ function BabyFeedingTracker(){
         {/* Add Feeding */}
         <div className="card" style={{padding:"14px 15px"}}>
           <div className="sec-title">➕ הוספת האכלה</div>
-          <div style={{display:"flex",gap:7,marginBottom:16}}>
+          <div style={{display:"flex",gap:7,marginBottom:16,flexWrap:"wrap"}}>
             <button className={`mode-btn ${feedMode==="time"?"active":""}`} onClick={()=>setFeedMode("time")}>⏱ התחלה/סיום</button>
             <button className={`mode-btn ${feedMode==="manual"?"active":""}`} onClick={()=>setFeedMode("manual")}>✏️ דקות ידנית</button>
+            <button className={`mode-btn ${feedMode==="sw"?"active":""}`} onClick={()=>setFeedMode("sw")}>⏱ שעון עצר</button>
             <button className={`mode-btn ${feedMode==="ml"?"active":""}`} onClick={()=>setFeedMode("ml")}>🧴 מ״ל שאוב</button>
           </div>
 
@@ -588,7 +628,49 @@ function BabyFeedingTracker(){
               <div><div className="lbl">כמות (מ״ל)</div><input type="number" className="inp" placeholder="למשל: 60" value={pumpedMl} onChange={e=>setPumpedMl(e.target.value)} min="0"/></div>
             </div>
           )}
-          <button className="btn-p" onClick={addFeeding}>הוסף האכלה</button>
+          {feedMode==="sw"&&(
+            <div style={{marginBottom:14}}>
+              {/* Big timer display */}
+              <div style={{textAlign:"center",padding:"20px 0 16px"}}>
+                <div style={{fontSize:64,fontWeight:900,color:swRunning?t.accent:t.textDark,letterSpacing:2,lineHeight:1,fontVariantNumeric:"tabular-nums"}}>
+                  {pad(swMins)}:{pad(swSecs)}
+                </div>
+                {swElapsed>0&&mlPerMin&&(
+                  <div style={{fontSize:13,color:t.statSub,marginTop:6,fontWeight:600}}>
+                    ≈ {(swMins*parseFloat(mlPerMin)).toFixed(1)} מ״ל
+                  </div>
+                )}
+              </div>
+              {/* Controls */}
+              <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+                {!swRunning&&swElapsed===0&&(
+                  <button onClick={swStart} style={{flex:1,padding:"14px",borderRadius:14,border:"none",background:`linear-gradient(135deg,${t.accent},${t.accentDark})`,color:"white",fontFamily:"inherit",fontSize:16,fontWeight:800,cursor:"pointer"}}>▶ התחל</button>
+                )}
+                {swRunning&&(
+                  <button onClick={swPause} style={{flex:1,padding:"14px",borderRadius:14,border:"none",background:"linear-gradient(135deg,#f0a030,#d08010)",color:"white",fontFamily:"inherit",fontSize:16,fontWeight:800,cursor:"pointer"}}>⏸ השהה</button>
+                )}
+                {!swRunning&&swElapsed>0&&(
+                  <>
+                    <button onClick={swStart} style={{flex:1,padding:"14px",borderRadius:14,border:"none",background:`linear-gradient(135deg,${t.accent},${t.accentDark})`,color:"white",fontFamily:"inherit",fontSize:16,fontWeight:800,cursor:"pointer"}}>▶ המשך</button>
+                    <button onClick={swReset} style={{flex:1,padding:"14px",borderRadius:14,border:`1.5px solid ${t.border}`,background:"none",fontFamily:"inherit",fontSize:16,fontWeight:800,color:t.text,cursor:"pointer"}}>↺ אפס</button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+          {feedMode!=="ml"&&(
+            <div style={{marginBottom:12}}>
+              <div className="lbl">צד ההנקה</div>
+              <div style={{display:"flex",gap:8}}>
+                <button className={`mode-btn ${feedSide==="right"?"active":""}`} onClick={()=>setFeedSide(s=>s==="right"?"":"right")}>◀️ ימין</button>
+                <button className={`mode-btn ${feedSide==="left"?"active":""}`} onClick={()=>setFeedSide(s=>s==="left"?"":"left")}>▶️ שמאל</button>
+                <button className={`mode-btn ${feedSide==="both"?"active":""}`} onClick={()=>setFeedSide(s=>s==="both"?"":"both")}>↔️ שניהם</button>
+              </div>
+            </div>
+          )}
+          <button className="btn-p" onClick={feedMode==="sw"?swFinish:addFeeding} style={{opacity:feedMode==="sw"&&swElapsed===0?0.4:1}}>
+            {feedMode==="sw"?`✅ סיים ושמור (${pad(swMins)}:${pad(swSecs)})`:"הוסף האכלה"}
+          </button>
         </div>
 
         {/* Add Diaper */}
