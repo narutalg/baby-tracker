@@ -674,25 +674,25 @@ function BabyFeedingTracker(){
         </div>
 
         {/* Add Diaper */}
-        <div className="card" style={{padding:"14px 15px"}}>
-          <div className="sec-title">🚼 חיתול</div>
-          <div style={{display:"flex",gap:16,alignItems:"flex-start"}}>
-            <div style={{flexShrink:0}}>
+        <div className="card" style={{padding:"10px 15px 14px"}}>
+          <div style={{fontSize:13,fontWeight:800,color:t.textDark,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>🚼 חיתול</div>
+          <div style={{display:"flex",gap:12}}>
+            <div style={{flexShrink:0,display:"flex",flexDirection:"column"}}>
               <div className="lbl">שעה</div>
-              <TimeWheel hour={diaperHour} setHour={setDiaperHour} min={diaperMin} setMin={setDiaperMin}/>
+              <div style={{flex:1,display:"flex",alignItems:"center"}}>
+                <TimeWheel hour={diaperHour} setHour={setDiaperHour} min={diaperMin} setMin={setDiaperMin}/>
+              </div>
             </div>
-            <div style={{flex:1,display:"flex",flexDirection:"column",gap:0,height:132}}>
-              <div className="lbl" style={{marginBottom:6}}>סוג</div>
-              <div style={{display:"flex",flexDirection:"column",gap:6,flex:1}}>
-                <button className={`mode-btn ${diaperType==="pee"?"active":""}`} onClick={()=>setDiaperType(d=>d==="pee"?"":"pee")} style={{width:"100%",flex:1,height:0}}>💧 פיפי</button>
-                <button className={`mode-btn ${diaperType==="poo"?"active":""}`} onClick={()=>setDiaperType(d=>d==="poo"?"":"poo")} style={{width:"100%",flex:1,height:0}}>💩 קקי</button>
-                <button className={`mode-btn ${diaperType==="both"?"active":""}`} onClick={()=>setDiaperType(d=>d==="both"?"":"both")} style={{width:"100%",flex:1,height:0}}>💧💩 שניהם</button>
+            <div style={{flex:1,display:"flex",flexDirection:"column"}}>
+              <div className="lbl">סוג</div>
+              <div style={{flex:1,display:"flex",flexDirection:"column",gap:6}}>
+                <button className={`mode-btn ${diaperType==="pee"?"active":""}`} onClick={()=>setDiaperType(d=>d==="pee"?"":"pee")} style={{width:"100%",flex:1}}>💧 פיפי</button>
+                <button className={`mode-btn ${diaperType==="poo"?"active":""}`} onClick={()=>setDiaperType(d=>d==="poo"?"":"poo")} style={{width:"100%",flex:1}}>💩 קקי</button>
+                <button className={`mode-btn ${diaperType==="both"?"active":""}`} onClick={()=>setDiaperType(d=>d==="both"?"":"both")} style={{width:"100%",flex:1}}>💧💩 שניהם</button>
               </div>
             </div>
           </div>
-          <div style={{marginTop:14}}>
-            <button className="btn-p" onClick={addDiaper} style={{opacity:diaperType?1:0.5}}>הוסף חיתול</button>
-          </div>
+          <button className="btn-p" onClick={addDiaper} style={{opacity:diaperType?1:0.5,marginTop:12}}>הוסף חיתול</button>
         </div>
 
         {/* Today's log */}
