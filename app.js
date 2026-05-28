@@ -168,9 +168,16 @@ function BabyFeedingTracker(){
 
   const [feedMode,setFeedMode]=useState("time");
   const [feedSide,setFeedSide]=useState("");
-  const [swRunning,setSwRunning]=useState(false);
-  const [swElapsed,setSwElapsed]=useState(0); // seconds
-  const [swStartedAt,setSwStartedAt]=useState(null); // Date.now() when started
+  const [swRunning,setSwRunning]=useState(()=>{
+    try{return localStorage.getItem("swRunning")==="true";}catch(e){return false;}
+  });
+  const [swStartedAt,setSwStartedAt]=useState(()=>{
+    try{const v=localStorage.getItem("swStartedAt");return v?parseInt(v):null;}catch(e){return null;}
+  });
+  const [swPausedElapsed,setSwPausedElapsed]=useState(()=>{
+    try{const v=localStorage.getItem("swPausedElapsed");return v?parseInt(v):0;}catch(e){return 0;}
+  });
+  const [swElapsed,setSwElapsed]=useState(0);
   const swRef=useRef(null); // "right" | "left" | "both" | ""
   const [startHour,setStartHour]=useState(today.getHours());
   const [startMin,setStartMin]=useState(today.getMinutes());
@@ -225,32 +232,52 @@ function BabyFeedingTracker(){
 
   function bump(){setAnimateNew(true);setTimeout(()=>setAnimateNew(false),600);}
 
-  // Stopwatch tick
+  // Stopwatch tick — calculates from real start time so background doesn't matter
   useEffect(()=>{
+    function tick(){
+      if(swRunning && swStartedAt){
+        setSwElapsed(Math.floor((Date.now()-swStartedAt)/1000)+swPausedElapsed);
+      }
+    }
+    tick(); // immediate update when foregrounded
     if(swRunning){
-      swRef.current=setInterval(()=>{
-        setSwElapsed(e=>e+1);
-      },1000);
-    } else {
-      clearInterval(swRef.current);
+      swRef.current=setInterval(tick,500);
     }
     return()=>clearInterval(swRef.current);
+  },[swRunning,swStartedAt,swPausedElapsed]);
+
+  // Persist stopwatch state
+  useEffect(()=>{
+    try{localStorage.setItem("swRunning",swRunning);}catch(e){}
   },[swRunning]);
+  useEffect(()=>{
+    try{localStorage.setItem("swStartedAt",swStartedAt||"");}catch(e){}
+  },[swStartedAt]);
+  useEffect(()=>{
+    try{localStorage.setItem("swPausedElapsed",swPausedElapsed);}catch(e){}
+  },[swPausedElapsed]);
 
   function swStart(){
-    if(!swRunning){
-      setSwStartedAt(prev=>prev||Date.now()-swElapsed*1000);
-      setSwRunning(true);
-    }
+    const now=Date.now();
+    setSwStartedAt(now);
+    setSwRunning(true);
   }
-  function swPause(){ setSwRunning(false); }
-  function swReset(){ setSwRunning(false); setSwElapsed(0); setSwStartedAt(null); }
+  function swPause(){
+    setSwPausedElapsed(swElapsed);
+    setSwStartedAt(null);
+    setSwRunning(false);
+  }
+  function swReset(){
+    setSwRunning(false);
+    setSwElapsed(0);
+    setSwStartedAt(null);
+    setSwPausedElapsed(0);
+    try{localStorage.removeItem("swRunning");localStorage.removeItem("swStartedAt");localStorage.removeItem("swPausedElapsed");}catch(e){}
+  }
   function swFinish(){
-    // Convert elapsed seconds to minutes and save as feeding
     const mins=Math.round(swElapsed/60);
     if(mins<=0){swReset();return;}
-    const now=new Date();
-    const startedDate=new Date(Date.now()-swElapsed*1000);
+    const startedDate=swStartedAt?new Date(swStartedAt):new Date(Date.now()-swElapsed*1000);
     const timeStr=`${pad(startedDate.getHours())}:${pad(startedDate.getMinutes())}`;
     setFeedings(p=>[...p,{id:Date.now(),date:selectedDate,time:timeStr,minutes:mins,ml:0,mode:"minutes",side:feedSide}]);
     swReset(); setFeedSide(""); bump();
@@ -676,19 +703,17 @@ function BabyFeedingTracker(){
         {/* Add Diaper */}
         <div className="card" style={{padding:"10px 15px 14px"}}>
           <div style={{fontSize:13,fontWeight:800,color:t.textDark,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>🚼 חיתול</div>
-          <div style={{display:"flex",gap:12}}>
-            <div style={{flexShrink:0,display:"flex",flexDirection:"column"}}>
+          <div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:12,alignItems:"start"}}>
+            <div>
               <div className="lbl">שעה</div>
-              <div style={{flex:1,display:"flex",alignItems:"center"}}>
-                <TimeWheel hour={diaperHour} setHour={setDiaperHour} min={diaperMin} setMin={setDiaperMin}/>
-              </div>
+              <TimeWheel hour={diaperHour} setHour={setDiaperHour} min={diaperMin} setMin={setDiaperMin}/>
             </div>
-            <div style={{flex:1,display:"flex",flexDirection:"column"}}>
+            <div>
               <div className="lbl">סוג</div>
-              <div style={{flex:1,display:"flex",flexDirection:"column",gap:6}}>
-                <button className={`mode-btn ${diaperType==="pee"?"active":""}`} onClick={()=>setDiaperType(d=>d==="pee"?"":"pee")} style={{width:"100%",flex:1}}>💧 פיפי</button>
-                <button className={`mode-btn ${diaperType==="poo"?"active":""}`} onClick={()=>setDiaperType(d=>d==="poo"?"":"poo")} style={{width:"100%",flex:1}}>💩 קקי</button>
-                <button className={`mode-btn ${diaperType==="both"?"active":""}`} onClick={()=>setDiaperType(d=>d==="both"?"":"both")} style={{width:"100%",flex:1}}>💧💩 שניהם</button>
+              <div style={{display:"flex",flexDirection:"column",gap:6,height:132}}>
+                <button className={`mode-btn ${diaperType==="pee"?"active":""}`} onClick={()=>setDiaperType(d=>d==="pee"?"":"pee")} style={{flex:1}}>💧 פיפי</button>
+                <button className={`mode-btn ${diaperType==="poo"?"active":""}`} onClick={()=>setDiaperType(d=>d==="poo"?"":"poo")} style={{flex:1}}>💩 קקי</button>
+                <button className={`mode-btn ${diaperType==="both"?"active":""}`} onClick={()=>setDiaperType(d=>d==="both"?"":"both")} style={{flex:1}}>💧💩 שניהם</button>
               </div>
             </div>
           </div>
